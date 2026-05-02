@@ -141,6 +141,10 @@
 #include "../usermods/audioreactive/audio_reactive.h"
 #endif
 
+#ifdef USERMOD_CUSTOM_FX
+#include "../usermods/custom_fx/usermod_v2_custom_fx.h"
+#endif
+
 #ifdef USERMOD_ANALOG_CLOCK
 #include "../usermods/Analog_Clock/Analog_Clock.h"
 #endif
@@ -337,6 +341,10 @@ void registerUsermods()
 
 #ifdef USERMOD_AUDIOREACTIVE
   usermods.add(new AudioReactive());
+#endif
+
+#ifdef USERMOD_CUSTOM_FX
+  usermods.add(new CustomFxUsermod());
 #endif
 
 #ifdef USERMOD_ANALOG_CLOCK

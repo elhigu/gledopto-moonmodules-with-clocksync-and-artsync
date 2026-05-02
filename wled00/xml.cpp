@@ -649,6 +649,10 @@ void getSettingsJS(AsyncWebServerRequest* request, byte subPage, char* dest) //W
     sappend('v',SET_F("XX"),DMXSegmentSpacing);
     sappend('v',SET_F("PY"),e131Priority);
     sappend('v',SET_F("DM"),DMXMode);
+    sappend('c',SET_F("ASW"),artNetSyncWait);
+    sappend('c',SET_F("ASE"),artNetSyncEmit);
+    sappend('v',SET_F("AST"),artNetSyncTriggerUni);
+    sappend('v',SET_F("ASD"),artNetSyncEmitDelayUs);
     sappend('v',SET_F("ET"),realtimeTimeoutMs);
     sappend('c',SET_F("FB"),arlsForceMaxBri);
     sappend('c',SET_F("RG"),arlsDisableGammaCorrection);

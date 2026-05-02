@@ -86,6 +86,7 @@ typedef struct ip_addr ip4_addr_t;
 #define DDP_ID_ALL      255  // all devices
 
 #define ARTNET_OPCODE_OPDMX 0x5000
+#define ARTNET_OPCODE_OPSYNC 0x5200
 #define ARTNET_OPCODE_OPPOLL 0x2000
 #define ARTNET_OPCODE_OPPOLLREPLY 0x2100
 

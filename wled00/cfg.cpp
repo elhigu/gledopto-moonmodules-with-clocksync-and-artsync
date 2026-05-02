@@ -464,6 +464,11 @@ bool deserializeConfig(JsonObject doc, bool fromFS) {
   if (e131Priority > 200) e131Priority = 200;
   CJSON(DMXMode, if_live_dmx["mode"]);
 
+  CJSON(artNetSyncWait,        if_live_dmx[F("syncwait")]);
+  CJSON(artNetSyncEmit,        if_live_dmx[F("syncemit")]);
+  CJSON(artNetSyncTriggerUni,  if_live_dmx[F("synctrig")]);
+  CJSON(artNetSyncEmitDelayUs, if_live_dmx[F("syncdelay")]);
+
   tdd = if_live[F("timeout")] | -1;
   if (tdd >= 0) realtimeTimeoutMs = tdd * 100;
 
@@ -961,6 +966,10 @@ void serializeConfig() {
   if_live_dmx[F("addr")] = DMXAddress;
   if_live_dmx[F("dss")] = DMXSegmentSpacing;
   if_live_dmx["mode"] = DMXMode;
+  if_live_dmx[F("syncwait")]  = artNetSyncWait;
+  if_live_dmx[F("syncemit")]  = artNetSyncEmit;
+  if_live_dmx[F("synctrig")]  = artNetSyncTriggerUni;
+  if_live_dmx[F("syncdelay")] = artNetSyncEmitDelayUs;
   #ifdef WLED_ENABLE_DMX_INPUT
     if_live_dmx[F("inputRxPin")] = dmxInputTransmitPin;
     if_live_dmx[F("inputTxPin")] = dmxInputReceivePin;

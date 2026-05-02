@@ -9,6 +9,8 @@
  */
 static byte e131LastSequenceNumber[E131_MAX_UNIVERSE_COUNT] = {0}; // to detect packet loss // WLEDMM moved from wled.h into e131.cpp
 
+static IPAddress broadcastForRemote(IPAddress remote); // defined below
+
 //DDP protocol support, called by handleE131Packet
 //handles RGB data only
 void handleDDPPacket(e131_packet_t* p) {
@@ -125,6 +127,15 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
       handleArtnetPollReply(clientIP);
       return;
     }
+    if (p->art_opcode == ARTNET_OPCODE_OPSYNC) {
+      // Frame latch: flush any buffered DMX immediately. Without this branch the
+      // gate at udp.cpp would still hold the frame until its timer expired.
+      if (e131NewData) {
+        e131NewData = false;
+        strip.show();
+      }
+      return;
+    }
     uni = p->art_universe;
     dmxChannels = htons(p->art_length);
     e131_data = p->art_data;
@@ -151,9 +162,22 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
     return;
   }
 
+  // Master broadcast fires regardless of whether this universe is in the master's
+  // own render range — we still want to emit OpSync after the highest universe of
+  // the whole frame arrives, even if the master only renders a lower slice.
+  bool isTriggerUni = (artNetSyncEmit && mde == REALTIME_MODE_ARTNET
+                       && uni == artNetSyncTriggerUni);
+
   // only listen for universes we're handling & allocated memory
   //if (uni < e131Universe || uni >= (e131Universe + E131_MAX_UNIVERSE_COUNT)) return;
-  if (uni < e131Universe || uni >= e131Universe + 256) return; // WLEDMM just prevent overflow
+  if (uni < e131Universe || uni >= e131Universe + 256) {
+    if (isTriggerUni) {
+      if (artNetSyncEmitDelayUs) delayMicroseconds(artNetSyncEmitDelayUs);
+      sendArtnetSync(broadcastForRemote(clientIP));
+      if (e131NewData) { e131NewData = false; strip.show(); }
+    }
+    return;
+  }
 
   uint8_t previousUniverses = uni - e131Universe;
 
@@ -174,6 +198,15 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
   realtimeIP = clientIP;
 
   handleDMXData(uni, dmxChannels, e131_data, mde, previousUniverses);
+
+  // Master mode: after the configured trigger universe is processed, broadcast
+  // OpSync so all listening nodes latch in lockstep, then latch ourselves locally.
+  // Senders like Resolume don't emit OpSync, so one WLED has to.
+  if (isTriggerUni) {
+    if (artNetSyncEmitDelayUs) delayMicroseconds(artNetSyncEmitDelayUs);
+    sendArtnetSync(broadcastForRemote(clientIP));
+    if (e131NewData) { e131NewData = false; strip.show(); }
+  }
 }
 
 void handleDMXData(uint16_t uni, uint16_t dmxChannels, uint8_t* e131_data, uint8_t mde, uint8_t previousUniverses) {
@@ -614,4 +647,39 @@ void sendArtnetPollReply(ArtPollReply *reply, IPAddress ipAddress, uint16_t port
   notifierUdp.endPacket();
 
   reply->reply_bind_index++;
+}
+
+// Pick the subnet-directed broadcast IP of whichever local interface 'remote' lives on,
+// so OpSync exits the same wire that brought the Art-Net DMX in. Falls back to
+// limited broadcast (255.255.255.255) if no interface matches — lwIP routing
+// then chooses, same as before.
+static IPAddress broadcastForRemote(IPAddress remote) {
+  auto inSubnet = [&](IPAddress ip, IPAddress mask) {
+    if ((uint32_t)ip == 0) return false;
+    return (uint32_t(ip) & uint32_t(mask)) == (uint32_t(remote) & uint32_t(mask));
+  };
+
+#ifdef WLED_USE_ETHERNET
+  if (inSubnet(ETH.localIP(), ETH.subnetMask())) {
+    return IPAddress(uint32_t(ETH.localIP()) | ~uint32_t(ETH.subnetMask()));
+  }
+#endif
+  if (inSubnet(WiFi.localIP(), WiFi.subnetMask())) {
+    return IPAddress(uint32_t(WiFi.localIP()) | ~uint32_t(WiFi.subnetMask()));
+  }
+  return IPAddress(255,255,255,255);
+}
+
+// Broadcast Art-Net OpSync (0x5200) to 'dest'. 14-byte packet, stateless.
+void sendArtnetSync(IPAddress dest) {
+  if (!(apActive || interfacesInited)) return;
+  static const uint8_t syncPacket[14] PROGMEM = {
+    'A','r','t','-','N','e','t', 0x00, // ID
+    0x00, 0x52,                        // OpCode OpSync (little-endian on wire)
+    0x00, 0x0e,                        // ProtVerHi/Lo (14)
+    0x00, 0x00                         // Aux1, Aux2 (transmit as 0)
+  };
+  notifierUdp.beginPacket(dest, ARTNET_DEFAULT_PORT);
+  notifierUdp.write(syncPacket, sizeof(syncPacket));
+  notifierUdp.endPacket();
 }

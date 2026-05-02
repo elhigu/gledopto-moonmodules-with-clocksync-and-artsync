@@ -169,6 +169,11 @@ DMX mode:
 <option value=10>Preset</option>
 </select><br>
 <a href="https://mm.kno.wled.ge/interfaces/e1.31-dmx/" target="_blank">E1.31 info</a><br>
+<i>Art-Net frame sync (OpSync 0x5200)</i><br>
+Defer show until OpSync received: <input type="checkbox" name="ASW"> (enable on every node)<br>
+Broadcast OpSync after trigger universe: <input type="checkbox" name="ASE"> (enable on one node)<br>
+Trigger universe: <input name="AST" type="number" min="0" max="63999" value="0" required> (set to highest universe in your frame)<br>
+OpSync emit delay: <input name="ASD" type="number" min="0" max="65535" value="0" required> &micro;s (master waits this long after the trigger universe before broadcasting; keep below 5000)<br>
 Timeout: <input name="ET" type="number" min="1" max="65000" required> ms<br>
 Force max brightness: <input type="checkbox" name="FB"><br>
 Disable realtime gamma correction: <input type="checkbox" name="RG"><br>

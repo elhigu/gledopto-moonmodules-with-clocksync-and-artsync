@@ -110,8 +110,10 @@ void ESPAsyncE131::parsePacket(AsyncUDPPacket _packet) {
 	if (protocol == P_ARTNET) {
 		if (memcmp(sbuff->art_id, ESPAsyncE131::ART_ID, sizeof(sbuff->art_id)))
 			error = true; //not "Art-Net"
-		if (sbuff->art_opcode != ARTNET_OPCODE_OPDMX && sbuff->art_opcode != ARTNET_OPCODE_OPPOLL)
-			error = true; //not a DMX or poll packet
+		if (sbuff->art_opcode != ARTNET_OPCODE_OPDMX
+		    && sbuff->art_opcode != ARTNET_OPCODE_OPSYNC
+		    && sbuff->art_opcode != ARTNET_OPCODE_OPPOLL)
+			error = true; //not a DMX, sync, or poll packet
 	} else { //E1.31 error handling
 		if (htonl(sbuff->root_vector) != ESPAsyncE131::VECTOR_ROOT)
 			error = true;

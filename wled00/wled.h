@@ -773,6 +773,20 @@ WLED_GLOBAL ESPAsyncE131 e131 _INIT_N(((handleE131Packet)));
 WLED_GLOBAL ESPAsyncE131 ddp  _INIT_N(((handleE131Packet)));
 WLED_GLOBAL bool e131NewData _INIT(false);
 
+// Art-Net frame sync (OpSync, opcode 0x5200)
+//   artNetSyncWait:        if true, defer strip.show() until OpSync arrives (slave latch)
+//   artNetSyncEmit:        if true, master broadcasts OpSync when artNetSyncTriggerUni arrives
+//   artNetSyncTriggerUni:  absolute Art-Net universe number that triggers the broadcast,
+//                          set this on the master to the highest universe in the frame
+//   artNetSyncEmitDelayUs: master waits this many microseconds AFTER processing the trigger
+//                          universe and BEFORE sending OpSync, so slow slaves can finish
+//                          processing their last universe. Blocks the UDP receive task —
+//                          keep below ~5000 (5 ms)
+WLED_GLOBAL bool     artNetSyncWait        _INIT(false);
+WLED_GLOBAL bool     artNetSyncEmit        _INIT(false);
+WLED_GLOBAL uint16_t artNetSyncTriggerUni  _INIT(0);
+WLED_GLOBAL uint16_t artNetSyncEmitDelayUs _INIT(0);
+
 // led fx library object
 WLED_GLOBAL BusManager busses _INIT(BusManager());
 WLED_GLOBAL WS2812FX strip _INIT(WS2812FX());

@@ -300,7 +300,9 @@ void handleNotifications()
     notify(notificationSentCallMode,true);
   }
 
-  if (e131NewData && millis() - strip.getLastShow() > 15)
+  // In artNetSyncWait mode the latch is driven by incoming OpSync (handled in
+  // e131.cpp) so the time-based fallback below must stay quiet to avoid tearing.
+  if (e131NewData && !artNetSyncWait && millis() - strip.getLastShow() > 15)
   {
     e131NewData = false;
     strip.show();

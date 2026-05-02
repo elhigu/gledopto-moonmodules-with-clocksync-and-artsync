@@ -133,6 +133,7 @@ void handleDMXData(uint16_t uni, uint16_t dmxChannels, uint8_t* e131_data, uint8
 void handleArtnetPollReply(IPAddress ipAddress);
 void prepareArtnetPollReply(ArtPollReply* reply);
 void sendArtnetPollReply(ArtPollReply* reply, IPAddress ipAddress, uint16_t portAddress);
+void sendArtnetSync(IPAddress dest = IPAddress(255,255,255,255));
 
 //file.cpp
 bool handleFileRead(AsyncWebServerRequest*, String path);
