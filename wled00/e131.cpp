@@ -1,4 +1,5 @@
 #include "wled.h"
+#include <sys/time.h>
 
 #define MAX_3_CH_LEDS_PER_UNIVERSE 170
 #define MAX_4_CH_LEDS_PER_UNIVERSE 128
@@ -112,7 +113,7 @@ void handleDDPPacket(e131_packet_t* p) {
 }
 
 //E1.31 and Art-Net protocol support
-void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
+void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol, size_t packetLen){
 
   uint16_t uni = 0, dmxChannels = 0;
   uint8_t* e131_data = nullptr;
@@ -128,8 +129,40 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
       return;
     }
     if (p->art_opcode == ARTNET_OPCODE_OPSYNC) {
-      // Frame latch: flush any buffered DMX immediately. Without this branch the
-      // gate at udp.cpp would still hold the frame until its timer expired.
+      // Extended OpSync: optional 8-byte target_us appended at offset 14 makes
+      // the packet ARTNET_SYNC_OPSYNC_EXT_LEN (22) bytes total. Vanilla spec
+      // packets are 14 bytes — latch immediately. Trailing-byte read is gated
+      // on packetLen so we never read past the actual UDP payload.
+      //
+      // Sanity-window check: if |target − now| > ARTNET_SYNC_TARGET_BOUND_US,
+      // the target is implausible (un-synced clock or non-extended sender that
+      // happened to pad). Fall back to immediate show. The upper bound is one
+      // frame interval at 30–60 fps; anything further would visibly hang.
+      // The pending-show watchdog in udp.cpp force-fires if the scheduled
+      // moment somehow becomes unreachable.
+      uint64_t target_us = 0;
+      if (packetLen >= ARTNET_SYNC_OPSYNC_EXT_LEN) {
+        memcpy(&target_us, ((const uint8_t*)p) + 14, sizeof(target_us));
+      }
+      if (target_us != 0) {
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        uint64_t now_us = (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+        int64_t delta = (int64_t)target_us - (int64_t)now_us;
+        if (delta > -(int64_t)ARTNET_SYNC_TARGET_BOUND_US
+            && delta < (int64_t)ARTNET_SYNC_TARGET_BOUND_US) {
+          if (delta > 0) {
+            // Write SetMs first so a torn read by the main loop sees either the
+            // old (TimeUs=0, no schedule) or the new pair — never new TimeUs
+            // with stale SetMs (which would look like an instant timeout).
+            scheduledShowSetMs  = millis();
+            scheduledShowTimeUs = target_us;
+            return;
+          }
+          // Slight past — show now, we missed by < bound.
+        }
+        // Out-of-window target → ignore and show now.
+      }
       if (e131NewData) {
         e131NewData = false;
         strip.show();
@@ -173,8 +206,23 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
   if (uni < e131Universe || uni >= e131Universe + 256) {
     if (isTriggerUni) {
       if (artNetSyncEmitDelayUs) delayMicroseconds(artNetSyncEmitDelayUs);
-      sendArtnetSync(broadcastForRemote(clientIP));
-      if (e131NewData) { e131NewData = false; strip.show(); }
+      uint64_t target_us = 0;
+      if (artNetSyncScheduleUs > 0) {
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        target_us = (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec
+                  + (uint64_t)artNetSyncScheduleUs;
+      }
+      sendArtnetSync(broadcastForRemote(clientIP), target_us);
+      if (target_us != 0) {
+        // Master schedules its own latch at the same target so it lands with slaves.
+        // SetMs written first — see receive-path comment above.
+        scheduledShowSetMs  = millis();
+        scheduledShowTimeUs = target_us;
+      } else if (e131NewData) {
+        e131NewData = false;
+        strip.show();
+      }
     }
     return;
   }
@@ -204,8 +252,22 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
   // Senders like Resolume don't emit OpSync, so one WLED has to.
   if (isTriggerUni) {
     if (artNetSyncEmitDelayUs) delayMicroseconds(artNetSyncEmitDelayUs);
-    sendArtnetSync(broadcastForRemote(clientIP));
-    if (e131NewData) { e131NewData = false; strip.show(); }
+    uint64_t target_us = 0;
+    if (artNetSyncScheduleUs > 0) {
+      struct timeval tv;
+      gettimeofday(&tv, nullptr);
+      target_us = (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec
+                + (uint64_t)artNetSyncScheduleUs;
+    }
+    sendArtnetSync(broadcastForRemote(clientIP), target_us);
+    if (target_us != 0) {
+      // SetMs written first — see receive-path comment above.
+      scheduledShowSetMs  = millis();
+      scheduledShowTimeUs = target_us;
+    } else if (e131NewData) {
+      e131NewData = false;
+      strip.show();
+    }
   }
 }
 
@@ -670,16 +732,26 @@ static IPAddress broadcastForRemote(IPAddress remote) {
   return IPAddress(255,255,255,255);
 }
 
-// Broadcast Art-Net OpSync (0x5200) to 'dest'. 14-byte packet, stateless.
-void sendArtnetSync(IPAddress dest) {
+// Broadcast Art-Net OpSync (0x5200) to 'dest'. Stateless.
+//   target_us == 0 → vanilla spec-compliant 14-byte packet.
+//   target_us != 0 → extended 22-byte packet with absolute presentation time
+//                    appended (uint64 LE). Slaves with a synced clock honor
+//                    the timestamp; spec-compliant receivers ignore the trailer.
+void sendArtnetSync(IPAddress dest, uint64_t target_us) {
   if (!(apActive || interfacesInited)) return;
-  static const uint8_t syncPacket[14] PROGMEM = {
+  uint8_t packet[22] = {
     'A','r','t','-','N','e','t', 0x00, // ID
-    0x00, 0x52,                        // OpCode OpSync (little-endian on wire)
+    0x00, 0x52,                        // OpCode OpSync (LE on wire)
     0x00, 0x0e,                        // ProtVerHi/Lo (14)
-    0x00, 0x00                         // Aux1, Aux2 (transmit as 0)
+    0x00, 0x00,                        // Aux1, Aux2 (transmit as 0)
+    0,0,0,0, 0,0,0,0                   // optional target_us (LE)
   };
+  size_t len = 14;
+  if (target_us != 0) {
+    memcpy(packet + 14, &target_us, sizeof(target_us));
+    len = 22;
+  }
   notifierUdp.beginPacket(dest, ARTNET_DEFAULT_PORT);
-  notifierUdp.write(syncPacket, sizeof(syncPacket));
+  notifierUdp.write(packet, len);
   notifierUdp.endPacket();
 }

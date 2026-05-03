@@ -300,9 +300,27 @@ void handleNotifications()
     notify(notificationSentCallMode,true);
   }
 
+  // Pending scheduled latch from a timestamped OpSync? Fire it as soon as the
+  // local clock crosses the target — runs on every loop tick so resolution is
+  // bounded by main-loop iteration time (~hundreds of µs typical).
+  // Watchdog: if a target sat scheduled for more than ARTNET_SYNC_TIMEOUT_MS
+  // without firing (clock jumped backward, target became unreachable) we
+  // force-fire so the buffer doesn't freeze indefinitely.
+  if (scheduledShowTimeUs != 0) {
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    uint64_t now_us = (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+    bool reached = now_us >= scheduledShowTimeUs;
+    bool timedOut = (millis() - scheduledShowSetMs) > ARTNET_SYNC_TIMEOUT_MS;
+    if (reached || timedOut) {
+      scheduledShowTimeUs = 0;
+      e131NewData = false;
+      strip.show();
+    }
+  }
   // In artNetSyncWait mode the latch is driven by incoming OpSync (handled in
   // e131.cpp) so the time-based fallback below must stay quiet to avoid tearing.
-  if (e131NewData && !artNetSyncWait && millis() - strip.getLastShow() > 15)
+  else if (e131NewData && !artNetSyncWait && millis() - strip.getLastShow() > 15)
   {
     e131NewData = false;
     strip.show();

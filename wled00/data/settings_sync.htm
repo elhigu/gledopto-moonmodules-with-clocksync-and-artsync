@@ -174,6 +174,7 @@ Defer show until OpSync received: <input type="checkbox" name="ASW"> (enable on 
 Broadcast OpSync after trigger universe: <input type="checkbox" name="ASE"> (enable on one node)<br>
 Trigger universe: <input name="AST" type="number" min="0" max="63999" value="0" required> (set to highest universe in your frame)<br>
 OpSync emit delay: <input name="ASD" type="number" min="0" max="65535" value="0" required> &micro;s (master waits this long after the trigger universe before broadcasting; keep below 5000)<br>
+OpSync schedule offset: <input name="ASS" type="number" min="0" max="200000" value="0" required> &micro;s (master only; non-zero appends a target time so all nodes latch in lockstep — needs ClockSync; 5000-10000 typical)<br>
 Timeout: <input name="ET" type="number" min="1" max="65000" required> ms<br>
 Force max brightness: <input type="checkbox" name="FB"><br>
 Disable realtime gamma correction: <input type="checkbox" name="RG"><br>

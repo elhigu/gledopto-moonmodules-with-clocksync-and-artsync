@@ -365,6 +365,8 @@ void handleSettingsSet(AsyncWebServerRequest *request, byte subPage)
     if (t >= 0 && t <= 63999) artNetSyncTriggerUni = t;
     t = request->arg(F("ASD")).toInt();
     if (t >= 0 && t <= 65535) artNetSyncEmitDelayUs = t;
+    t = request->arg(F("ASS")).toInt();
+    if (t >= 0 && t <= ARTNET_SYNC_SCHEDULE_MAX_US) artNetSyncScheduleUs = t;
     t = request->arg(F("ET")).toInt();
     if (t > 99  && t <= 65000) realtimeTimeoutMs = t;
     arlsForceMaxBri = request->hasArg(F("FB"));

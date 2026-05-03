@@ -228,8 +228,9 @@ typedef union {
   uint8_t raw[239];
 } ArtPollReply;
 
-// new packet callback
-typedef void (*e131_packet_callback_function) (e131_packet_t* p, IPAddress clientIP, byte protocol);
+// new packet callback. `length` is the UDP payload size — needed by callers that
+// want to detect trailing extension data (e.g. timestamped OpSync).
+typedef void (*e131_packet_callback_function) (e131_packet_t* p, IPAddress clientIP, byte protocol, size_t length);
 
 class ESPAsyncE131 {
  private:

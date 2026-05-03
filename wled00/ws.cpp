@@ -91,10 +91,10 @@ void wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTyp
         if (!data || len < offset+1) return; // catch invalid / single-byte payload
         switch (data[0]) {
           case BINARY_PROTOCOL_E131:
-            handleE131Packet((e131_packet_t*)&data[offset], client->remoteIP(), P_E131);
+            handleE131Packet((e131_packet_t*)&data[offset], client->remoteIP(), P_E131, len - offset);
             break;
           case BINARY_PROTOCOL_ARTNET:
-            handleE131Packet((e131_packet_t*)&data[offset], client->remoteIP(), P_ARTNET);
+            handleE131Packet((e131_packet_t*)&data[offset], client->remoteIP(), P_ARTNET, len - offset);
             break;
           case BINARY_PROTOCOL_DDP:
             if (len < unsigned(10 + offset)) return; // DDP header is 10 bytes (+1 protocol byte)
@@ -103,7 +103,7 @@ void wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTyp
             if ((flags & DDP_FLAGS_TIME) ) ddpDataLen += 4; // timecode flag adds 4 bytes to data length
             if (len < (10 + offset + ddpDataLen)) return; // not enough data, prevent out of bounds read
             // could be a valid DDP packet, forward to handler
-            handleE131Packet((e131_packet_t*)&data[offset], client->remoteIP(), P_DDP);
+            handleE131Packet((e131_packet_t*)&data[offset], client->remoteIP(), P_DDP, len - offset);
         }
       }
     } else {

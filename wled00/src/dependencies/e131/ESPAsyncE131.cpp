@@ -131,6 +131,6 @@ void ESPAsyncE131::parsePacket(AsyncUDPPacket _packet) {
   }
 
   if (!error) {
-    _callback(sbuff, _packet.remoteIP(), protocol);
+    _callback(sbuff, _packet.remoteIP(), protocol, _packet.length());
   }
 }

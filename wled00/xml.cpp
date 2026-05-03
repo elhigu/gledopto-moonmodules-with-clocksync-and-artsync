@@ -653,6 +653,7 @@ void getSettingsJS(AsyncWebServerRequest* request, byte subPage, char* dest) //W
     sappend('c',SET_F("ASE"),artNetSyncEmit);
     sappend('v',SET_F("AST"),artNetSyncTriggerUni);
     sappend('v',SET_F("ASD"),artNetSyncEmitDelayUs);
+    sappend('v',SET_F("ASS"),artNetSyncScheduleUs);
     sappend('v',SET_F("ET"),realtimeTimeoutMs);
     sappend('c',SET_F("FB"),arlsForceMaxBri);
     sappend('c',SET_F("RG"),arlsDisableGammaCorrection);

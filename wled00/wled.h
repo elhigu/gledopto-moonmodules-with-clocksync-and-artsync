@@ -786,6 +786,39 @@ WLED_GLOBAL bool     artNetSyncWait        _INIT(false);
 WLED_GLOBAL bool     artNetSyncEmit        _INIT(false);
 WLED_GLOBAL uint16_t artNetSyncTriggerUni  _INIT(0);
 WLED_GLOBAL uint16_t artNetSyncEmitDelayUs _INIT(0);
+// Master schedules slave latch this many microseconds in the future via the
+// 8-byte target_us appended to OpSync (extended packet, total 22 bytes).
+// 0 = disabled, send vanilla 14-byte OpSync (slaves latch on receipt).
+WLED_GLOBAL uint32_t artNetSyncScheduleUs  _INIT(0);
+// When non-zero, defer strip.show() until gettimeofday() reaches this absolute
+// microsecond value. Set by the OpSync receive path when a timestamped packet
+// arrives and the local clock is plausibly synced; cleared when fired or
+// when the safety timeout below is hit.
+WLED_GLOBAL uint64_t scheduledShowTimeUs   _INIT(0);
+// millis() snapshot at the moment scheduledShowTimeUs was set — used to force
+// firing if the wall-clock target is unreachable (e.g. clock jumped backward).
+WLED_GLOBAL uint32_t scheduledShowSetMs    _INIT(0);
+
+// ArtSync timestamped-OpSync feature constants. Centralized so the receive,
+// emit, scheduled-show, and config-validation paths agree on the same values.
+//   ARTNET_SYNC_OPSYNC_EXT_LEN: total bytes in the extended OpSync packet —
+//     14 spec bytes + 8-byte uint64 target_us appended at offset 14.
+//   ARTNET_SYNC_TARGET_BOUND_US: receive-side sanity window. A target whose
+//     |delta| exceeds this is considered bogus / from an un-synced clock and
+//     the receiver falls back to immediate strip.show(). 15 ms covers a
+//     single frame interval at 30–60 fps; targets further out would buffer
+//     visibly long.
+//   ARTNET_SYNC_TIMEOUT_MS: safety deadline. If a scheduled show hasn't
+//     fired within this many milliseconds of being set (e.g. clock jumped
+//     backward, target became unreachable), force-fire to avoid a frozen
+//     buffer.
+//   ARTNET_SYNC_SCHEDULE_MAX_US: upper limit on the user-settable master
+//     schedule offset. 200 ms is generous; bigger values produce visibly
+//     held frames and are likely misconfiguration.
+#define ARTNET_SYNC_OPSYNC_EXT_LEN     22
+#define ARTNET_SYNC_TARGET_BOUND_US    15000
+#define ARTNET_SYNC_TIMEOUT_MS         100
+#define ARTNET_SYNC_SCHEDULE_MAX_US    200000
 
 // led fx library object
 WLED_GLOBAL BusManager busses _INIT(BusManager());
