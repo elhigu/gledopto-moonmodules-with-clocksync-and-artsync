@@ -145,6 +145,10 @@
 #include "../usermods/custom_fx/usermod_v2_custom_fx.h"
 #endif
 
+#ifdef USERMOD_CLOCKSYNC
+#include "../usermods/ClockSync/usermod_v2_clocksync.h"
+#endif
+
 #ifdef USERMOD_ANALOG_CLOCK
 #include "../usermods/Analog_Clock/Analog_Clock.h"
 #endif
@@ -345,6 +349,10 @@ void registerUsermods()
 
 #ifdef USERMOD_CUSTOM_FX
   usermods.add(new CustomFxUsermod());
+#endif
+
+#ifdef USERMOD_CLOCKSYNC
+  usermods.add(new ClockSyncUsermod());
 #endif
 
 #ifdef USERMOD_ANALOG_CLOCK
